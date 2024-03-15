@@ -21,11 +21,14 @@ bool enc_1_raw;
 bool enc_0_raw;
 int8_t encoder_state = 0;
 bool new_state = 1;
+bool kill_state = 1;
+bool enab_state = 0;
 
 enum {
     LED = 7,
     ENC_0 = 6,
     ENC_1 = 5,
+    BUT_L = 4,
     BUT_R = 3,
     KILL = 14, //B6
     ENAB = 12 //B4
@@ -100,6 +103,13 @@ static void input_value_handler(struct TF_IO16V2 *io16_v2, uint8_t channel, bool
         } else
             return; //ignore LOW to HIGH on button
         break;
+    case BUT_L:
+        if(value == 0) {
+            kill_state = !kill_state;
+            enab_state = !enab_state;
+        } else
+            return; //ignore LOW to HIGH on button
+        break;
     case ENC_0:
         enc_0_raw = value;
         break;
@@ -127,7 +137,10 @@ void TestModule::setup()
 
     // Configure channels input/out
     tf_io16_v2_set_configuration(&io, LED, 'o', false); //led
+    tf_io16_v2_set_configuration(&io, KILL, 'o', false); //kill output
+    tf_io16_v2_set_configuration(&io, ENAB, 'o', false); //enable output
     tf_io16_v2_set_configuration(&io, BUT_R, 'i', true); //right button
+    tf_io16_v2_set_configuration(&io, BUT_L, 'i', true); //right button
     tf_io16_v2_set_configuration(&io, ENC_0, 'i', true); //encoder
     tf_io16_v2_set_configuration(&io, ENC_1, 'i', true); //encoder
 
@@ -149,6 +162,8 @@ void TestModule::setup()
     tf_io16_v2_set_input_value_callback_configuration(&io, BUT_R, 100, true);
     tf_io16_v2_set_input_value_callback_configuration(&io, ENC_0, 100, true);
     tf_io16_v2_set_input_value_callback_configuration(&io, ENC_1, 100, true);
+    tf_io16_v2_set_input_value_callback_configuration(&io, BUT_L, 100, true);
+
 
     initialized = true;
     logger.printfln("Test module initialized");
@@ -162,8 +177,11 @@ void TestModule::loop()
     tf_hal_sleep_us(&hal, 100 * 1000);
       
     if(new_state){
-        led_state = relay_state[encoder_state];
+        led_state = enab_state;
         tf_io16_v2_set_selected_value(&io, LED, led_state);
+
+        tf_io16_v2_set_selected_value(&io, KILL, kill_state);
+        tf_io16_v2_set_selected_value(&io, ENAB, enab_state);
 
         tf_industrial_quad_relay_v2_set_value(&rel, relay_state);
         
